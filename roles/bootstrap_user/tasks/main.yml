@@ -1,0 +1,31 @@
+---
+- name: Register username var
+  set_fact:
+    username: "{{ ansible_user }}"
+
+- name: Create new user if not exists
+  vars:
+    ansible_user: "{{ initial_user | default('root') }}"
+  block:
+    - name: Check if new user already exists
+      command: >
+        ssh -q
+        -o BatchMode=yes
+        -o ConnectTimeout=3
+        {{ ansible_ssh_common_args }}
+        -i {{ ansible_ssh_private_key_file }}
+        {{ username }}@{{ inventory_hostname }} "echo OK"
+      delegate_to: localhost
+      changed_when: false
+      failed_when: false
+      register: check_new_user
+
+    - name: Create new user
+      import_role:
+        name: create_user
+      when: not "OK" in check_new_user.stdout
+
+- name: Lockdown root
+  import_role:
+    name: lockdown_root
+  become: true

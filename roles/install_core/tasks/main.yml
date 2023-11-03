@@ -1,0 +1,38 @@
+- name: Copy application repository deploy key from controller to host
+  copy:
+    src: "{{ deploy_key_path }}"
+    dest: /tmp/deploy_key
+    mode: 0600
+
+- name: Clone private repository
+  git:
+    repo: "{{ core_repo }}"
+    dest: "{{ core_dest }}"
+    force: true
+    accept_hostkey: true
+    key_file: /tmp/deploy_key
+
+- name: Remove deploy key from host
+  file:
+    path: /tmp/deploy_key
+    state: absent
+
+- name: Create .env file from template
+  template:
+    src: templates/env.j2
+    dest: "{{ core_dest }}/.env"
+
+- name: Create docker-compose.override.yml from template
+  template:
+    src: templates/docker-compose.override.yml.j2
+    dest: "{{ core_dest }}/docker-compose.override.yml"
+
+- name: Start all services
+  command:
+    cmd: docker compose up -d
+    chdir: "{{ core_dest }}"
+
+- name: Remove source code from host
+  file:
+    path: "{{ core_dest }}"
+    state: absent

@@ -1,0 +1,16 @@
+---
+- name: Initialize state_outputs object
+  set_fact:
+    state_outputs: "{{ state_outputs | default({}) }}"
+
+- name: List all objects in the specified S3 bucket and prefix
+  amazon.aws.aws_s3:
+    bucket: "{{ state_bucket }}"
+    prefix: "{{ prefix }}"
+    mode: list
+  register: state_items
+
+- name: Pass filtered s3 keys to the inner loop, that generates state_outputs var
+  include_tasks: inner.yml
+  with_items: "{{ state_items.s3_keys }}"
+  when: item is match(prefix ~ '.*' ~ suffix)

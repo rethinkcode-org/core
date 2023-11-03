@@ -1,0 +1,17 @@
+---
+- name: Gathering Facts
+  setup:
+
+- name: Disable root SSH login
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^PermitRootLogin"
+    line: "PermitRootLogin no"
+  register: sshd_config_changed
+
+- name: Restart SSH
+  systemd:
+    name: sshd
+    enabled: true
+    state: restarted
+  when: sshd_config_changed.changed

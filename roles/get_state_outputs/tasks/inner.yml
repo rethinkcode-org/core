@@ -1,0 +1,20 @@
+---
+- name: Gather facts about env
+  set_fact:
+    state_env: "{{ item | regex_replace( prefix ~ '/(.+)/.*', '\\1') }}"
+
+- name: Use env to determine destination for local state
+  set_fact:
+    state_dest: "state/{{ state_env }}.json"
+
+- name: "Fetch {{ state_bucket }}/{{ item }} from S3 and save as {{ state_dest }}"
+  amazon.aws.aws_s3:
+    bucket: "{{ state_bucket }}"
+    object: "{{ item }}"
+    mode: get
+    dest: "{{ state_dest }}"
+    overwrite: different
+
+- name: Read state file, {{ state_dest }} into state_outputs variable
+  set_fact:
+    state_outputs: "{{ state_outputs | combine({state_env: (lookup('file', state_dest) | from_json).outputs}) }}"

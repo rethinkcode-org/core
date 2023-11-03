@@ -1,0 +1,21 @@
+---
+- name: Gathering Facts
+  setup:
+
+- name: Create main user
+  user:
+    name: "{{ username }}"
+    group: sudo
+    shell: /bin/bash
+    createhome: true
+
+- name: Add authorized key
+  authorized_key:
+    user: "{{ username }}"
+    key: "{{ lookup('file', instance_pubkey_path) }}"
+
+- name: Allow the main user to sudo without a password
+  lineinfile:
+    path: /etc/sudoers
+    line: "{{ username }} ALL=(ALL:ALL) NOPASSWD:ALL"
+    validate: "visudo -cf %s"

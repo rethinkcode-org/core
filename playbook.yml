@@ -1,0 +1,91 @@
+---
+- name: Pre-Tasks
+  hosts: localhost
+  vars_files:
+    - vars.yml
+  tasks:
+    - name: Ensure Ansible roles/collections are installed
+      community.general.ansible_galaxy_install:
+        type: both
+        requirements_file: requirements.yml
+
+    - block:
+        - name: Ensure state_outputs object is generated from up-to-date Terraform state
+          include_role:
+            name: get_state_outputs
+
+        - name: Merge state_outputs into environment
+          set_fact:
+            envs: "{{ state_outputs | combine(envs, recursive=True) }}"
+
+        - name: Download known hosts
+          amazon.aws.aws_s3:
+            bucket: "{{ item.value.downstream_state_bucket.value }}"
+            object: "{{ item.value.known_hosts_object.value }}"
+            mode: get
+            dest: "{{ item.value.known_hosts_path.value }}"
+            overwrite: different
+          loop: "{{ envs | dict2items }}"
+          loop_control:
+            label: "{{ item.key }}"
+          when: item.value.known_hosts_object is defined
+
+        - name: Create Inventory from template
+          template:
+            src: templates/hosts.ini.j2
+            dest: hosts.ini
+
+        - name: Refreshing Inventory
+          meta: refresh_inventory
+      tags:
+        - deploy
+
+- name: Create a main user, and ensure that root's ssh access is prohibited
+  hosts: all
+  gather_facts: false
+  roles:
+    - bootstrap_user
+
+- name: Ensure system is ready, up-to-date, and dependencies and Docker are installed, as root user
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Ensure apt is responsive
+      shell: |
+        while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+          sleep 5
+          echo "lock detected"
+        done
+      register: apt_lock_result
+      changed_when: "'lock detected' in apt_lock_result.stdout_lines"
+
+    - name: Ensure system is up-to-date
+      apt:
+        update_cache: true
+        upgrade: dist
+        autoclean: true
+        autoremove: true
+      register: apt_result
+
+    - name: Reboot if system was updated
+      reboot:
+      when: apt_result.changed
+
+    - name: Ensure packages are installed
+      apt:
+        pkg:
+          - git
+  vars:
+    docker_install_compose_plugin: true
+    docker_install_compose: false
+    docker_users:
+      - "{{ ansible_env.SUDO_USER }}"
+  roles:
+    - geerlingguy.docker
+
+- name: Install Core Platform
+  hosts: all
+  tags:
+    - deploy
+  roles:
+    - install_core

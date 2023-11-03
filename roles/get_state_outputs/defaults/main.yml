@@ -1,0 +1,3 @@
+---
+prefix: "env:"
+suffix: ".tfstate"

@@ -1,0 +1,9 @@
+version: "3"
+
+services:
+  traefik:
+    environment:
+      {%- for key, value in traefik_acme_dnschallenge_variables.items() %}
+
+      {{ key }}: ${{ "{" }}{{ key }}{{ "}" }}
+      {%- endfor %}
